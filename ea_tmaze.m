@@ -2,6 +2,7 @@ function code = ea_tmaze
     code.initialization = @initializationCodeFun;
     code.runtime = @runtimeCodeFun;
     code.termination = @terminationCodeFun;
+end
 
 function vr = initializationCodeFun(vr)
     % constants
@@ -13,8 +14,8 @@ function vr = initializationCodeFun(vr)
     vr.ITI = 6;
     vr.LEFT = 1;
     vr.RIGHT = 2;
-    logPath = 'C:\Users\tankadmin\Desktop\virmenLogs_deverett\';
-    vr.expName = inputdlg('Experiment name:', 'Experiment Name', 1, datestr(now, 'yyyymmdd_HHMMSS'));
+    logPath = 'C:\Users\admin\Desktop\virmenLogs_deverett\';
+    vr.expName = datestr(now, 'yyyymmdd_HHMMSS');
     
     % parameters
     vr.startPosition = 0.0;
@@ -27,11 +28,18 @@ function vr = initializationCodeFun(vr)
     
     % external interactions
     beep on;
+
     vr = initDAQ(vr);
     vr.fid = fopen(strcat(logPath, vr.expName), 'w');
     vr.text(1).position = [-1.2 1]; % upper-left corner of the screen 
     vr.text(1).size = 0.03; % letter size as fraction of the screen 
     vr.text(1).color = [1 1 0]; % yellow
+    
+    vr.ball_circumference_in_cm = 72.4;
+    vr.scaling_factor_encoder_to_virmen_units = vr.ball_circumference_in_cm/33.33;
+    vr.old_theta = 0; vr.theta_change = 0; vr.new_theta = 0; vr.reward_number = 0;
+
+    return;
     
     % VR world variables
     vr.hallWidth = eval(vr.exper.variables.hallWidth);
@@ -64,8 +72,21 @@ function vr = initializationCodeFun(vr)
     % init code
     save(strcat(logPath, vr.expName, '_vr_backup'), 'vr')
     vr.position(2) = vr.startPosition;
+end
 
 function vr = runtimeCodeFun(vr)
+    samp            = getsample(vr.ai);
+    theta           = samp(1,1);
+    vr.licking      = samp(1,2);
+    vr.new_theta    = 5-theta;
+    vr.theta_change = vr.new_theta-vr.old_theta;
+    vr.old_theta    = vr.new_theta;
+    %angular encoder 00
+    if vr.new_theta < 0
+        vr.new_theta = 0;
+    end
+    return;
+    
     lastPhase = vr.phase;
     vr.phase = determinePhase(vr);
     
@@ -81,7 +102,7 @@ function vr = runtimeCodeFun(vr)
                 if (vr.trialsDone == vr.nTrials)
                    vr.experimentEnded = true; 
                 else
-                    vr.trialsDone += 1;
+                    vr.trialsDone = vr.trialsDone+1;
                     vr.phasesComplete = [];
                     vr.currentTrial = vr.trials(vr.trialsDone+1);
                     vr.position(2)=vr.startPosition; vr.dp(:)=0; % teleport to start
@@ -119,14 +140,18 @@ function vr = runtimeCodeFun(vr)
     updateDAQ(vr);
     logIteration(vr);
     vr.text(1).string = ['TIME ' datestr(now-vr.startTime,'MM.SS') ; 'PHASE ' vr.phase];
-    vr.elapsedInPhase += vr.dt;
+    vr.elapsedInPhase = vr.elapsedInPhase + vr.dt;
+end
 
 function vr = terminationCodeFun(vr)
+    return;
     stop(vr.ai); % daq
     delete(vr.tempfile); % daq
     fclose(vr.fid);
+end
 
 %%%% Other Functions %%%%%
+%{
 
 function logIteration(vr)
     fwrite(vr.fid, [now, vr.position vr.velocity vr.currentTrial.index vr.phase], 'double');
@@ -148,6 +173,7 @@ function phase = determinePhase(vr)
         phase = vr.ITI;
     elseif (phase == vr.ITI && vr.elapsedInPhase >= vr.iti)
         phase = vr.START;
+    end
 end
 
 function trials = generateTrials(vr, lambdas, freqs)
@@ -191,19 +217,17 @@ function trials = generateTrials(vr, lambdas, freqs)
         trials(t).index = t;
     end
 end
+%}
 
 function vr = initDAQ(vr)
     daqreset;
     vr.ai = analoginput('nidaq', 'dev1')
     addchannel(vr.ai, 0:1)
-    set(vr.ai,'samplerate',1000,'samplespertrigger',inf);
-    set(vr.ai,'bufferingconfig',[8 100]);
-    set(vr.ai,'loggingmode','Disk'); 
-    vr.tempfile = [tempname '.log']; 
-    set(vr.ai,'logfilename',vr.tempfile);
-    start(vr.ai);
+    set(vr.ai,'samplerate',1000,'samplespertrigger',2);
+    %start(vr.ai);
 end
 
+%{
 function vr = displayCurrentTrial(vr)
     return;
     %NOTES: check whether an object made in GUI, ex. cueCylinder, if it has multiple positions, how that shows up in the vr.worlds{}.objects.vertices/indices field. If it's clearly multiple instances with separate positions, then it will be easy to manipulate them in run time. When you go to make the actual pillars, do it programatically, not with gui, and set something like 1000 positions for them on each side, so that you never have to add a new object during runtime for any trial. all unused ones can be made transparent.
@@ -228,3 +252,4 @@ function vr = displayCurrentTrial(vr)
     vr.worlds{vr.currentWorld}.surface.vertices(2, vr.verticesL) = yL + shiftL; %change position
     vr.worlds{vr.currentWorld}.surface.colors(4, vr.verticesL) = 0; %change transparency THIS IS NOT DONE
 end
+%}
