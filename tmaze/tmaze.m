@@ -7,7 +7,10 @@ code.termination = @terminationCodeFun;
 function vr = initializationCodeFun(vr)
 
     % parameters
+    vr.pathSeparator = '/'
+    vr.path = '/Users/ben/Desktop/';
     vr.nTrials = 100;
+    vr.hintsOn = false;
 
     % constants
     vr.LONGARM = 0;
@@ -31,14 +34,23 @@ function vr = initializationCodeFun(vr)
     idxWallL2 = vr.worlds{vr.currentWorld}.objects.indices.wallLeftRule2;
     idxWallR1 = vr.worlds{vr.currentWorld}.objects.indices.wallRightRule1;
     idxWallR2 = vr.worlds{vr.currentWorld}.objects.indices.wallRightRule2;
+    idxHint1 = vr.worlds{vr.currentWorld}.objects.indices.hint1;
+    idxHint2 = vr.worlds{vr.currentWorld}.objects.indices.hint2;
     v01WallL1 = vr.worlds{vr.currentWorld}.objects.vertices(idxWallL1,:);
     v01WallL2 = vr.worlds{vr.currentWorld}.objects.vertices(idxWallL2,:);
     v01WallR1 = vr.worlds{vr.currentWorld}.objects.vertices(idxWallR1,:);
     v01WallR2 = vr.worlds{vr.currentWorld}.objects.vertices(idxWallR2,:);
+    v01Hint1 = vr.worlds{vr.currentWorld}.objects.vertices(idxHint1,:);
+    v01Hint2 = vr.worlds{vr.currentWorld}.objects.vertices(idxHint2,:);
     vr.idxsWallL1 = v01WallL1(1):v01WallL1(2);
     vr.idxsWallL2 = v01WallL2(1):v01WallL2(2);
     vr.idxsWallR1 = v01WallR1(1):v01WallR1(2);
     vr.idxsWallR2 = v01WallR2(1):v01WallR2(2);
+    vr.idxsHint1 = v01Hint1(1):v01Hint1(2);
+    vr.idxsHint2 = v01Hint2(1):v01Hint2(2);
+    if (~vr.hintsOn)
+        vr = hideHints(vr);
+    end
 
     % custom variables
     vr.terminationDistance = 0.7 * eval(vr.exper.variables.tWidth)/2;
@@ -50,8 +62,6 @@ function vr = initializationCodeFun(vr)
     vr.trials = randi(2,vr.nTrials,1);
 
     % save paths
-    vr.pathSeparator = '/'
-    vr.path = '/Users/ben/Desktop/';
     vr.runName = datestr(now,'yyyymmddTHHMMSS');
     exper = copyVirmenObject(vr.exper);
     vr.savePathExp = [vr.path vr.pathSeparator vr.runName '.mat'];
@@ -170,6 +180,12 @@ function vr = goToStart(vr)
 function res = dt(t2,t1)
     res = etime(datevec(t2),datevec(t1));
 
+function vr = hideHints(vr)
+    shift = vr.displaceShift;
+    z_H1 = vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsHint1);
+
+    vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsHint1) = z_H1 - shift;
+
 function vr = changeRule(vr, rule)
     if (vr.currentRule == rule)
         return
@@ -182,14 +198,20 @@ function vr = changeRule(vr, rule)
         signn = -1;
     end
 
-    x_L1 = vr.worlds{vr.currentWorld}.surface.vertices(1,vr.idxsWallL1);
-    x_L2 = vr.worlds{vr.currentWorld}.surface.vertices(1,vr.idxsWallL2);
-    x_R1 = vr.worlds{vr.currentWorld}.surface.vertices(1,vr.idxsWallR1);
-    x_R2 = vr.worlds{vr.currentWorld}.surface.vertices(1,vr.idxsWallR2);
+    z_L1 = vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsWallL1);
+    z_L2 = vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsWallL2);
+    z_R1 = vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsWallR1);
+    z_R2 = vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsWallR2);
+    z_H1 = vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsHint1);
+    z_H2 = vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsHint2);
 
-    vr.worlds{vr.currentWorld}.surface.vertices(1,vr.idxsWallL1) = x_L1 + signn*shift;
-    vr.worlds{vr.currentWorld}.surface.vertices(1,vr.idxsWallL2) = x_L2 - signn*shift;
-    vr.worlds{vr.currentWorld}.surface.vertices(1,vr.idxsWallR1) = x_R1 - signn*shift;
-    vr.worlds{vr.currentWorld}.surface.vertices(1,vr.idxsWallR2) = x_R2 + signn*shift;
+    vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsWallL1) = z_L1 + signn*shift;
+    vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsWallL2) = z_L2 - signn*shift;
+    vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsWallR1) = z_R1 + signn*shift;
+    vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsWallR2) = z_R2 - signn*shift;
+    if vr.hintsOn
+        vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsHint1) = z_H1 + signn*shift;
+        vr.worlds{vr.currentWorld}.surface.vertices(3,vr.idxsHint2) = z_H2 - signn*shift;
+    end
 
     vr.currentRule = rule;
